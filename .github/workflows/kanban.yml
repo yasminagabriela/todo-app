@@ -1,0 +1,36 @@
+name: Kanban - issue affectée
+
+on:
+  issues:
+    types: [assigned]          # déclenché quand une issue est affectée
+
+jobs:
+  en-cours:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+      OWNER: "@me"                # le propriétaire du jeton (votre compte)
+      PROJECT_NUMBER: 1          # ⚠️ remplacer par le numéro de VOTRE projet
+      ISSUE_URL: ${{ github.event.issue.html_url }}
+    steps:
+      - name: Déplacer la carte dans In Progress
+        run: |
+          # 0. Vérifier le jeton : affiche ses permissions ou l'erreur exacte
+          echo "Permissions du jeton :"
+          gh api -i user | grep -i '^x-oauth-scopes'
+
+          # 1. Identifiant interne du projet
+          PROJECT_ID=$(gh project view "$PROJECT_NUMBER" --owner "$OWNER" --format json --jq .id)
+
+          # 2. Identifiants du champ Status et de la colonne In Progress
+          FIELD_ID=$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --format json \
+            --jq '.fields[] | select(.name=="Status") | .id')
+          OPTION_ID=$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --format json \
+            --jq '.fields[] | select(.name=="Status") | .options[] | select(.name=="In Progress") | .id')
+
+          # 3. Carte de l'issue (l'ajoute au projet si elle n'y est pas encore)
+          ITEM_ID=$(gh project item-add "$PROJECT_NUMBER" --owner "$OWNER" --url "$ISSUE_URL" --format json --jq .id)
+
+          # 4. Déplacement de la carte
+          gh project item-edit --id "$ITEM_ID" --project-id "$PROJECT_ID" \
+            --field-id "$FIELD_ID" --single-select-option-id "$OPTION_ID"
